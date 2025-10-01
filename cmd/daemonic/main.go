@@ -1,23 +1,11 @@
 package main
 
 import (
-	"context"
 	"fmt"
-	"log/slog"
 	"os"
 
-	"github.com/adamstrickland/daemonic/pkg/daemon"
-	"github.com/adamstrickland/daemonic/pkg/example"
 	"github.com/alecthomas/kong"
-	"go.uber.org/zap"
 )
-
-type KlickCommand struct {
-	BrokerURIs  []string `name:"broker-uris" help:"List of Kafka broker URIs."`
-	RegistryURI string   `name:"registry-uri" help:"URI for the schema registry."`
-}
-
-type TickCommand struct{}
 
 var config struct {
 	UseZap bool         `name:"zap" optional:"" help:"Use zap logger instead of slog."`
@@ -40,76 +28,4 @@ func main() {
 
 	err = cmd.Run()
 	cmd.FatalIfErrorf(err)
-}
-
-func getLogger(useZap bool) (daemon.Logger, func(), error) {
-	if useZap {
-		zlogger, err := zap.NewProduction()
-		if err != nil {
-			return nil, nil, fmt.Errorf("error creating zap logger: %w", err)
-		}
-
-		cleanup := func() {
-			zlogger.Sync()
-		}
-
-		return daemon.NewZapAdapter(zlogger), cleanup, nil
-	} else {
-		slogger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-
-		return daemon.NewSlogAdapter(slogger), func() {}, nil
-	}
-}
-
-func (c KlickCommand) Run() error {
-	logger, closer, err := getLogger(config.UseZap)
-	if err != nil {
-		return err
-	}
-	defer closer()
-
-	logger.Info("starting klicker", "config", config)
-
-	archon, err := daemon.NewArchon(daemon.WithLogger(logger))
-	if err != nil {
-		return err
-	}
-
-	app, err := example.NewKlicker(example.WithLogger(logger),
-		example.WithBootstrapURIs(c.BrokerURIs))
-	if err != nil {
-		return err
-	}
-
-	if err := archon.Run(context.Background(), app); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (TickCommand) Run() error {
-	logger, closer, err := getLogger(config.UseZap)
-	if err != nil {
-		return err
-	}
-	defer closer()
-
-	logger.Info("starting ticker", "config", config)
-
-	archon, err := daemon.NewArchon(daemon.WithLogger(logger))
-	if err != nil {
-		return err
-	}
-
-	app, err := example.NewTicker(example.WithLogger(logger))
-	if err != nil {
-		return err
-	}
-
-	if err := archon.Run(context.Background(), app); err != nil {
-		return err
-	}
-
-	return nil
 }

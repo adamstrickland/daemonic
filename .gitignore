@@ -30,6 +30,5 @@ go.work.sum
 # Editor/IDE
 # .idea/
 # .vscode/
-./bin
-./daemonic
-daemonic
+/bin
+/daemonic
