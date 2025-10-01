@@ -21,14 +21,16 @@ type Archon struct {
 type ArchonOption func(*Archon)
 
 func WithSlog(slogger *slog.Logger) ArchonOption {
-	return func(a *Archon) {
-		a.logger = NewSlogAdapter(slogger)
-	}
+	return WithLogger(NewSlogAdapter(slogger))
 }
 
 func WithZap(zlogger *zap.Logger) ArchonOption {
+	return WithLogger(NewZapAdapter(zlogger))
+}
+
+func WithLogger(logger Logger) ArchonOption {
 	return func(a *Archon) {
-		a.logger = NewZapAdapter(zlogger)
+		a.logger = logger
 	}
 }
 

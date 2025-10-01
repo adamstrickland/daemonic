@@ -3,7 +3,7 @@ default:
     @just --list
 
 # Build the project
-build *args="./...":
+build *args="./cmd/daemonic":
     go build {{args}}
 
 # Clean build artifacts
@@ -16,8 +16,7 @@ test *args="./...":
     go test {{args}}
 
 # Build and run the daemon
-run *args="":
-    go build ./cmd/daemonic
+run *args="": build
     ./daemonic {{args}}
 
 # Distribution target (no-op for now)

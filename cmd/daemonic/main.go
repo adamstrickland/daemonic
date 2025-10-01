@@ -2,67 +2,57 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"log/slog"
 	"os"
-	"os/signal"
-	"syscall"
-	"time"
 
 	"github.com/adamstrickland/daemonic/pkg/daemon"
+	"github.com/adamstrickland/daemonic/pkg/example"
+	"go.uber.org/zap"
 )
 
+var (
+	useZap = true
+)
+
+func init() {
+	flag.BoolVar(&useZap, "zap", false, "Use zap logger (default: slog)")
+
+	flag.Parse()
+}
+
 func main() {
-	if err := run(); err != nil {
+	var logger daemon.Logger
+
+	if useZap {
+		zlogger, err := zap.NewProduction()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error creating logger: %v\n", err)
+			os.Exit(1)
+		}
+		defer zlogger.Sync()
+		logger = daemon.NewZapAdapter(zlogger)
+	} else {
+		slogger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+		logger = daemon.NewSlogAdapter(slogger)
+	}
+
+	archon, err := daemon.NewArchon(daemon.WithLogger(logger))
+	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
 	}
-}
 
-func run() error {
-	// Setup structured logging
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	slog.SetDefault(logger)
-
-	// Create root context with cancellation
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	// Setup signal handling
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
-
-	// Initialize your service(s)
-	svc := daemon.NewTicker()
-
-	// Start service in goroutine
-	errCh := make(chan error, 1)
-	go func() {
-		slog.Info("starting service")
-		if err := svc.Run(ctx); err != nil {
-			errCh <- err
-		}
-	}()
-
-	// Wait for shutdown signal or error
-	select {
-	case err := <-errCh:
-		return fmt.Errorf("service error: %w", err)
-	case sig := <-sigCh:
-		slog.Info("received signal", "signal", sig)
+	app, err := example.NewTicker(example.WithLogger(logger))
+	// app, err := example.NewTicker()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		os.Exit(1)
 	}
 
-	// Graceful shutdown
-	cancel() // Signal context cancellation to service
-
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer shutdownCancel()
-
-	slog.Info("shutting down gracefully")
-	if err := svc.Shutdown(shutdownCtx); err != nil {
-		return fmt.Errorf("shutdown error: %w", err)
+	if err := archon.Run(context.Background(), app); err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		os.Exit(1)
 	}
-
-	slog.Info("shutdown complete")
-	return nil
 }
