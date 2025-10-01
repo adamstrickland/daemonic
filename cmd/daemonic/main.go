@@ -8,9 +8,10 @@ import (
 )
 
 var config struct {
-	UseZap bool         `name:"zap" optional:"" help:"Use zap logger instead of slog."`
-	Klick  KlickCommand `cmd:"" help:"Run the Klicker application."`
-	Tick   TickCommand  `cmd:"" help:"Run the Ticker application."`
+	UseZap bool  `name:"zap" optional:"" help:"Use zap logger instead of slog."`
+	Klick  Klick `cmd:"" help:"Run the Klicker application."`
+	Tick   Tick  `cmd:"" help:"Run the Ticker application."`
+	Tock   Tock  `cmd:"" help:"Run the Tocker application."`
 }
 
 func main() {

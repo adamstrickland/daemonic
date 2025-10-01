@@ -7,12 +7,12 @@ import (
 	"github.com/adamstrickland/daemonic/pkg/example"
 )
 
-type KlickCommand struct {
+type Klick struct {
 	BrokerURIs  []string `name:"broker-uris" help:"List of Kafka broker URIs."`
 	RegistryURI string   `name:"registry-uri" help:"URI for the schema registry."`
 }
 
-func (c KlickCommand) Run() error {
+func (c Klick) Run() error {
 	logger, closer, err := getLogger(config.UseZap)
 	if err != nil {
 		return err

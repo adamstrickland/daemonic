@@ -7,9 +7,9 @@ import (
 	"github.com/adamstrickland/daemonic/pkg/example"
 )
 
-type TickCommand struct{}
+type Tick struct{}
 
-func (TickCommand) Run() error {
+func (Tick) Run() error {
 	logger, closer, err := getLogger(config.UseZap)
 	if err != nil {
 		return err

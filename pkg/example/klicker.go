@@ -21,10 +21,12 @@ type Klicker struct {
 }
 
 func WithBootstrapURIs(uris []string) AnyOption {
-	return func(a any) {
+	return func(a any) error {
 		if t, ok := a.(*Klicker); ok {
 			t.bootstrapURIs = uris
+			return nil
 		}
+		return fmt.Errorf("WithBootstrapURIs can only be used with Klicker type")
 	}
 }
 
