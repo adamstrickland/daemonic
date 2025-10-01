@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/adamstrickland/daemonic/pkg/daemon"
-	"github.com/adamstrickland/daemonic/pkg/example"
+	example "github.com/adamstrickland/daemonic/pkg/example/klicker"
 )
 
 type Klick struct {

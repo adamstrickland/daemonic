@@ -1,4 +1,4 @@
-package example
+package klicker
 
 import (
 	"context"
@@ -20,17 +20,7 @@ type Klicker struct {
 	bootstrapURIs []string
 }
 
-func WithBootstrapURIs(uris []string) AnyOption {
-	return func(a any) error {
-		if t, ok := a.(*Klicker); ok {
-			t.bootstrapURIs = uris
-			return nil
-		}
-		return fmt.Errorf("WithBootstrapURIs can only be used with Klicker type")
-	}
-}
-
-func NewKlicker(options ...AnyOption) (*Klicker, error) {
+func NewKlicker(options ...Option) (*Klicker, error) {
 	t := &Klicker{
 		logger:        nil,
 		ticker:        time.NewTicker(1 * time.Second),

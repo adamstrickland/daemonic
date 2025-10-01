@@ -1,4 +1,4 @@
-package example
+package ticker
 
 import (
 	"context"
@@ -13,7 +13,7 @@ type Ticker struct {
 	logger daemon.Logger
 }
 
-func NewTicker(options ...AnyOption) (*Ticker, error) {
+func NewTicker(options ...Option) (*Ticker, error) {
 	t := &Ticker{
 		logger: nil,
 		ticker: time.NewTicker(1 * time.Second),
