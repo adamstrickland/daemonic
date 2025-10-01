@@ -20,7 +20,7 @@ func (Tock) Run() error {
 	}
 	defer closer()
 
-	logger.Info("starting ticker", "config", config)
+	logger.Info("starting tocker", "config", config)
 
 	archon, err := daemon.NewArchon(daemon.WithLogger(logger))
 	if err != nil {
