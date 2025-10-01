@@ -13,7 +13,6 @@ networks:
 services:
   kafka-broker:
     image: confluentinc/cp-kafka:7.6.4
-    profiles: ["all", "kafka"]
     container_name: kafka-broker
     ports:
       - "9091:9092"

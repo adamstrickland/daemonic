@@ -6,14 +6,17 @@ import (
 	"time"
 
 	"github.com/adamstrickland/daemonic/pkg/daemon"
+	"github.com/twmb/franz-go/pkg/kadm"
 	"github.com/twmb/franz-go/pkg/kgo"
 )
+
+const TopicName = "daemonic.klicker"
 
 type Klicker struct {
 	ticker        *time.Ticker
 	logger        daemon.Logger
 	client        *kgo.Client
-	closers       []func()
+	closers       []func() error
 	bootstrapURIs []string
 }
 
@@ -50,17 +53,43 @@ func NewKlicker(options ...AnyOption) (*Klicker, error) {
 }
 
 func (s *Klicker) Setup(ctx context.Context) error {
-	cl, err := kgo.NewClient(
+	adm, err := kadm.NewOptClient(
 		kgo.SeedBrokers(s.bootstrapURIs...),
-		kgo.ConsumerGroup("klicker"),
-		// kgo.ConsumeTopics("foo"),
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create kafka admin client: %w", err)
+	}
+	defer adm.Close()
+
+	tds, err := adm.ListTopics(ctx, TopicName)
+	if err != nil {
+		return fmt.Errorf("failed to list topics: %w", err)
+	}
+
+	if _, exists := tds[TopicName]; exists {
+		s.logger.Info("topic already exists, skipping creation", "topic", TopicName)
+	} else {
+		s.logger.Info("creating topic", "topic", TopicName)
+		ctr, err := adm.CreateTopic(ctx, 1, 1, nil, TopicName)
+		if err != nil || ctr.Err != nil {
+			return fmt.Errorf("failed to create topic %q: %w", TopicName, err)
+		}
+	}
+
+	klient, err := kgo.NewClient(
+		kgo.SeedBrokers(s.bootstrapURIs...),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create kafka client: %w", err)
 	}
 
-	s.client = cl
-	s.closers = append(s.closers, cl.Close)
+	s.client = klient
+	s.closers = append(s.closers, func() error {
+		s.logger.Info("closing kafka client")
+		s.client.Close()
+		s.logger.Info("kafka client closed")
+		return nil
+	})
 
 	return nil
 }
@@ -68,14 +97,39 @@ func (s *Klicker) Setup(ctx context.Context) error {
 func (s *Klicker) Run(ctx context.Context) error {
 	defer s.ticker.Stop()
 
+	if s.client == nil {
+		return fmt.Errorf("kafka client is not initialized")
+	}
+
+	if s.client.Ping(ctx) != nil {
+		return fmt.Errorf("kafka client is closed")
+	}
+
 	for {
 		select {
 		case <-ctx.Done():
 			return nil
 		case t := <-s.ticker.C:
-			s.logger.Info("klick", "timestamp", t.Format(time.RFC3339))
+			s.onTick(ctx, t)
 		}
 	}
+}
+
+func (s *Klicker) onTick(ctx context.Context, t time.Time) {
+	tick := t.Format(time.RFC3339)
+
+	record := &kgo.Record{
+		Topic: TopicName,
+		Value: []byte(tick),
+	}
+
+	err := s.client.ProduceSync(ctx, record).FirstErr()
+	if err != nil {
+		s.logger.Error("klick", "timestamp", tick, "error", err)
+		return
+	}
+
+	s.logger.Info("klick", "timestamp", tick)
 }
 
 func (s *Klicker) Shutdown(ctx context.Context) error {
@@ -87,30 +141,3 @@ func (s *Klicker) Shutdown(ctx context.Context) error {
 
 	return nil
 }
-
-// cl, err := kgo.NewClient(
-// 	kgo.SeedBrokers(seeds...),
-// 	kgo.ConsumerGroup("my-group-identifier"),
-// 	kgo.ConsumeTopics("foo"),
-// )
-// if err != nil {
-// 	panic(err)
-// }
-// defer cl.Close()
-//
-// ctx := context.Background()
-//
-// // 1.) Producing a message
-// // All record production goes through Produce, and the callback can be used
-// // to allow for synchronous or asynchronous production.
-// var wg sync.WaitGroup
-// wg.Add(1)
-// record := &kgo.Record{Topic: "foo", Value: []byte("bar")}
-// cl.Produce(ctx, record, func(_ *kgo.Record, err error) {
-// 	defer wg.Done()
-// 	if err != nil {
-// 		fmt.Printf("record had a produce error: %v\n", err)
-// 	}
-//
-// })
-// wg.Wait()

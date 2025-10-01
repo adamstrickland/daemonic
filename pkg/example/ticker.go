@@ -42,9 +42,13 @@ func (s *Ticker) Run(ctx context.Context) error {
 		case <-ctx.Done():
 			return nil
 		case t := <-s.ticker.C:
-			s.logger.Info("tick", "timestamp", t.Format(time.RFC3339))
+			s.onTick(ctx, t)
 		}
 	}
+}
+
+func (s *Ticker) onTick(_ context.Context, t time.Time) {
+	s.logger.Info("tick", "timestamp", t.Format(time.RFC3339))
 }
 
 func (s *Ticker) Shutdown(ctx context.Context) error {
