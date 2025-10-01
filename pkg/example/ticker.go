@@ -13,15 +13,7 @@ type Ticker struct {
 	logger daemon.Logger
 }
 
-type Option func(*Ticker)
-
-func WithLogger(logger daemon.Logger) Option {
-	return func(t *Ticker) {
-		t.logger = logger
-	}
-}
-
-func NewTicker(options ...Option) (*Ticker, error) {
+func NewTicker(options ...AnyOption) (*Ticker, error) {
 	t := &Ticker{
 		logger: nil,
 		ticker: time.NewTicker(1 * time.Second),

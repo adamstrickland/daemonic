@@ -12,12 +12,17 @@ import (
 	"go.uber.org/zap"
 )
 
+type KlickCommand struct {
+	BrokerURIs  []string `name:"broker-uris" help:"List of Kafka broker URIs."`
+	RegistryURI string   `name:"registry-uri" help:"URI for the schema registry."`
+}
+
+type TickCommand struct{}
+
 var config struct {
-	UseZap bool `name:"zap" optional:"" help:"Use zap logger instead of slog."`
-	Kafka  struct {
-		BrokerURIs  []string `name:"broker-uris" help:"List of Kafka broker URIs."`
-		RegistryURI string   `name:"registry-uri" help:"URI for the schema registry."`
-	} `embed:"" prefix:"kafka."`
+	UseZap bool         `name:"zap" optional:"" help:"Use zap logger instead of slog."`
+	Klick  KlickCommand `cmd:"" help:"Run the Klicker application."`
+	Tick   TickCommand  `cmd:"" help:"Run the Ticker application."`
 }
 
 func main() {
@@ -27,39 +32,84 @@ func main() {
 		os.Exit(1)
 	}
 
-	k.Parse(os.Args[1:])
-
-	var logger daemon.Logger
-
-	if config.UseZap {
-		zlogger, err := zap.NewProduction()
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "error creating logger: %v\n", err)
-			os.Exit(1)
-		}
-		defer zlogger.Sync()
-		logger = daemon.NewZapAdapter(zlogger)
-	} else {
-		slogger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-		logger = daemon.NewSlogAdapter(slogger)
-	}
-
-	logger.Info("starting application", "config", config)
-
-	archon, err := daemon.NewArchon(daemon.WithLogger(logger))
+	cmd, err := k.Parse(os.Args[1:])
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
+	}
+
+	err = cmd.Run()
+	cmd.FatalIfErrorf(err)
+}
+
+func getLogger(useZap bool) (daemon.Logger, func(), error) {
+	if useZap {
+		zlogger, err := zap.NewProduction()
+		if err != nil {
+			return nil, nil, fmt.Errorf("error creating zap logger: %w", err)
+		}
+
+		cleanup := func() {
+			zlogger.Sync()
+		}
+
+		return daemon.NewZapAdapter(zlogger), cleanup, nil
+	} else {
+		slogger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+
+		return daemon.NewSlogAdapter(slogger), func() {}, nil
+	}
+}
+
+func (c KlickCommand) Run() error {
+	logger, closer, err := getLogger(config.UseZap)
+	if err != nil {
+		return err
+	}
+	defer closer()
+
+	logger.Info("starting klicker", "config", config)
+
+	archon, err := daemon.NewArchon(daemon.WithLogger(logger))
+	if err != nil {
+		return err
+	}
+
+	app, err := example.NewKlicker(example.WithLogger(logger),
+		example.WithBootstrapURIs(c.BrokerURIs))
+	if err != nil {
+		return err
+	}
+
+	if err := archon.Run(context.Background(), app); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (TickCommand) Run() error {
+	logger, closer, err := getLogger(config.UseZap)
+	if err != nil {
+		return err
+	}
+	defer closer()
+
+	logger.Info("starting ticker", "config", config)
+
+	archon, err := daemon.NewArchon(daemon.WithLogger(logger))
+	if err != nil {
+		return err
 	}
 
 	app, err := example.NewTicker(example.WithLogger(logger))
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
-		os.Exit(1)
+		return err
 	}
 
 	if err := archon.Run(context.Background(), app); err != nil {
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
-		os.Exit(1)
+		return err
 	}
+
+	return nil
 }
