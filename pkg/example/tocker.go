@@ -3,6 +3,7 @@ package example
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"time"
 
@@ -72,27 +73,24 @@ func NewTocker(options ...AnyOption) (*Tocker, error) {
 		return nil, fmt.Errorf("logger is required")
 	}
 
-	if t.tockClient == nil {
-		tc, err := NewTockClient(WithLogger(t.logger),
-			WithPort(t.port))
-		if err != nil {
-			return nil, fmt.Errorf("failed to create tock client: %w", err)
-		}
-		t.tockClient = tc
-	}
-
 	return t, nil
 }
 
 func (s *Tocker) Setup(ctx context.Context) error {
-	err := s.tockServer.Setup(ctx)
-	if err != nil {
-		return fmt.Errorf("tock server setup failed: %w", err)
+	if s.tockServer != nil {
+		s.logger.Info("setting up tock server")
+		err := s.tockServer.Setup(ctx)
+		if err != nil {
+			return fmt.Errorf("tock server setup failed: %w", err)
+		}
 	}
 
-	err = s.tockClient.Setup(ctx)
-	if err != nil {
-		return fmt.Errorf("tock client setup failed: %w", err)
+	if s.tockClient != nil {
+		s.logger.Info("setting up tock client")
+		err := s.tockClient.Setup(ctx)
+		if err != nil {
+			return fmt.Errorf("tock client setup failed: %w", err)
+		}
 	}
 
 	return nil
@@ -103,18 +101,22 @@ func (s *Tocker) Run(ctx context.Context) error {
 	errorCh := make(chan error, 2)
 
 	// Start TockServer
-	go func() {
-		if err := s.tockServer.Run(ctx); err != nil {
-			errorCh <- fmt.Errorf("tock server error: %w", err)
-		}
-	}()
+	if s.tockServer != nil {
+		go func() {
+			if err := s.tockServer.Run(ctx); err != nil {
+				errorCh <- fmt.Errorf("tock server error: %w", err)
+			}
+		}()
+	}
 
 	// Start TockClient
-	go func() {
-		if err := s.tockClient.Run(ctx); err != nil {
-			errorCh <- fmt.Errorf("tock client error: %w", err)
-		}
-	}()
+	if s.tockClient != nil {
+		go func() {
+			if err := s.tockClient.Run(ctx); err != nil {
+				errorCh <- fmt.Errorf("tock client error: %w", err)
+			}
+		}()
+	}
 
 	// Wait for context cancellation or any service error
 	select {
@@ -126,14 +128,20 @@ func (s *Tocker) Run(ctx context.Context) error {
 }
 
 func (s *Tocker) Shutdown(ctx context.Context) error {
-	err := s.tockServer.Shutdown(ctx)
-	if err != nil {
-		return fmt.Errorf("tock server shutdown failed: %w", err)
+	if s.tockServer != nil {
+		s.logger.Info("shutting down tock server")
+		err := s.tockServer.Shutdown(ctx)
+		if err != nil {
+			return fmt.Errorf("tock server shutdown failed: %w", err)
+		}
 	}
 
-	err = s.tockClient.Shutdown(ctx)
-	if err != nil {
-		return fmt.Errorf("tock client shutdown failed: %w", err)
+	if s.tockClient != nil {
+		s.logger.Info("shutting down tock client")
+		err := s.tockClient.Shutdown(ctx)
+		if err != nil {
+			return fmt.Errorf("tock client shutdown failed: %w", err)
+		}
 	}
 
 	return nil
@@ -225,15 +233,17 @@ func (s *TockServer) Shutdown(ctx context.Context) error {
 }
 
 type TockClient struct {
-	ticker *time.Ticker
-	logger daemon.Logger
-	port   int
+	ticker     *time.Ticker
+	logger     daemon.Logger
+	port       int
+	httpClient *http.Client
 }
 
 func NewTockClient(options ...AnyOption) (*TockClient, error) {
 	t := &TockClient{
-		logger: nil,
-		ticker: time.NewTicker(1 * time.Second),
+		logger:     nil,
+		ticker:     time.NewTicker(1 * time.Second),
+		httpClient: &http.Client{Timeout: 5 * time.Second},
 	}
 
 	for _, opt := range options {
@@ -264,8 +274,33 @@ func (s *TockClient) Run(ctx context.Context) error {
 	}
 }
 
-func (s *TockClient) onTick(_ context.Context, t time.Time) {
-	// s.logger.Info("tick", "timestamp", t.Format(time.RFC3339))
+func (s *TockClient) onTick(ctx context.Context, t time.Time) {
+	if s.port == 0 {
+		s.logger.Info("skipping tick request, no port configured")
+		return
+	}
+
+	url := fmt.Sprintf("http://localhost:%d/tick", s.port)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		s.logger.Error("failed to create request", "error", err, "url", url)
+		return
+	}
+
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		s.logger.Error("failed to make tick request", "error", err, "url", url)
+		return
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		s.logger.Error("failed to read response body", "error", err, "url", url)
+		return
+	}
+
+	s.logger.Info("tick request completed", "url", url, "status", resp.Status, "response", string(body))
 }
 
 func (s *TockClient) Shutdown(ctx context.Context) error {

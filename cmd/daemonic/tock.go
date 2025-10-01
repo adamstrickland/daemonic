@@ -9,7 +9,7 @@ import (
 
 type Tock struct {
 	Port      int  `default:"8081" help:"Port to listen on"`
-	RunServer bool `name:"server" default:"true" help:"Run the server"`
+	RunServer bool `name:"server" negatable:"" default:"true" help:"Run the server"`
 	RunClient bool `name:"client" default:"false" help:"Run the client"`
 }
 
