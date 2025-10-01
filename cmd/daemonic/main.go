@@ -14,6 +14,10 @@ import (
 
 var config struct {
 	UseZap bool `name:"zap" optional:"" help:"Use zap logger instead of slog."`
+	Kafka  struct {
+		BrokerURIs  []string `name:"broker-uris" help:"List of Kafka broker URIs."`
+		RegistryURI string   `name:"registry-uri" help:"URI for the schema registry."`
+	} `embed:"" prefix:"kafka."`
 }
 
 func main() {
@@ -39,6 +43,8 @@ func main() {
 		slogger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 		logger = daemon.NewSlogAdapter(slogger)
 	}
+
+	logger.Info("starting application", "config", config)
 
 	archon, err := daemon.NewArchon(daemon.WithLogger(logger))
 	if err != nil {
