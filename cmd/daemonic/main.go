@@ -8,6 +8,8 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/adamstrickland/daemonic/pkg/daemon"
 )
 
 func main() {
@@ -31,7 +33,7 @@ func run() error {
 	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
 
 	// Initialize your service(s)
-	svc := NewTickerService()
+	svc := daemon.NewTicker()
 
 	// Start service in goroutine
 	errCh := make(chan error, 1)
@@ -62,44 +64,5 @@ func run() error {
 	}
 
 	slog.Info("shutdown complete")
-	return nil
-}
-
-// Service represents a long-running service (HTTP server, Kafka consumer, etc.)
-type Service interface {
-	Run(ctx context.Context) error
-	Shutdown(ctx context.Context) error
-}
-
-// TickerService writes timestamp every second
-type TickerService struct {
-	ticker *time.Ticker
-	done   chan struct{}
-}
-
-func NewTickerService() *TickerService {
-	return &TickerService{
-		done: make(chan struct{}),
-	}
-}
-
-func (s *TickerService) Run(ctx context.Context) error {
-	s.ticker = time.NewTicker(1 * time.Second)
-	defer s.ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		case t := <-s.ticker.C:
-			slog.Info("tick", "timestamp", t.Format(time.RFC3339))
-		case <-s.done:
-			return nil
-		}
-	}
-}
-
-func (s *TickerService) Shutdown(ctx context.Context) error {
-	close(s.done)
 	return nil
 }

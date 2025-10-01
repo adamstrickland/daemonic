@@ -4,7 +4,7 @@ This file provides guidance to WARP (warp.dev) when working with code in this re
 
 ## Project Overview
 
-`daemoninc` is a Go template/foundation for building robust daemon services. It implements a clean shutdown pattern with signal handling, structured logging, and graceful service lifecycle management.
+`daemonic` is a Go template/foundation for building robust daemon services. It implements a clean shutdown pattern with signal handling, structured logging, and graceful service lifecycle management.
 
 ## Key Architecture
 
@@ -18,7 +18,7 @@ type Service interface {
 
 ### Core Components
 
-- **Main application** (`cmd/daemoninc/main.go`): Provides the daemon framework with signal handling, graceful shutdown, and structured logging
+- **Main application** (`cmd/daemonic/main.go`): Provides the daemon framework with signal handling, graceful shutdown, and structured logging
 - **Service interface**: Abstract interface that all services must implement
 - **Example service**: `TickerService` demonstrates the pattern with a simple ticker that logs timestamps
 
@@ -34,7 +34,7 @@ type Service interface {
 
 ### Build
 ```bash
-go build ./cmd/daemoninc
+go build ./cmd/daemonic
 ```
 
 ### Test
@@ -56,7 +56,7 @@ golangci-lint run
 
 ### Run
 ```bash
-./daemoninc
+./daemonic
 ```
 
 ### Dependencies
@@ -82,9 +82,9 @@ go mod tidy
 
 ## Project Structure
 
-- `cmd/daemoninc/`: Main application entry point
+- `cmd/daemonic/`: Main application entry point
 - `int/`: Empty directory, likely intended for internal packages
-- Binary output: `./daemoninc` (gitignored: `./bin`)
+- Binary output: `./daemonic` (gitignored: `./bin`)
 
 ## Notes
 
