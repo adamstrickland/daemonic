@@ -58,7 +58,7 @@ func (s *Klicker) Setup(ctx context.Context) error {
 		return fmt.Errorf("failed to list topics: %w", err)
 	}
 
-	if _, exists := tds[TopicName]; exists {
+	if td, exists := tds[TopicName]; exists && td.Err == nil {
 		s.logger.Info("topic already exists, skipping creation", "topic", TopicName)
 	} else {
 		s.logger.Info("creating topic", "topic", TopicName)
